@@ -2,6 +2,12 @@ from django.db import models
 from accounts.models import User
 
 class Story(models.Model):
+    PUBLIC = 'public'
+    PRIVATE = 'private'
+    VISIBILITY_CHOICES = [
+        (PUBLIC, 'Public'),
+        (PRIVATE, 'Private'),
+    ]
     STATUS_CHOICES = (
         ('active', 'Active'),
         ('quarantined', 'Quarantined'),
@@ -17,6 +23,11 @@ class Story(models.Model):
     quarantine_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    visibility = models.CharField(
+        max_length=10,
+        choices=VISIBILITY_CHOICES,
+        default=PUBLIC
+    )
     
     def __str__(self):
         return self.title
@@ -81,3 +92,11 @@ class QuarantineReport(models.Model):
     
     def __str__(self):
         return f"Report for {self.story.title} by {self.reported_by.username}"
+
+class StoryFollower(models.Model):
+    story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name='followers')
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('story', 'user')

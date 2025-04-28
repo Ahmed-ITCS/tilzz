@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',  # Add this line
     'corsheaders',
+    'django_extensions',
     
     # Custom apps
     'accounts',

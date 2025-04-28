@@ -15,7 +15,7 @@ class PublicStoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for public story browsing (no authentication required)
     """
-    queryset = Story.objects.filter(status='active').order_by('-created_at')
+    queryset = Story.objects.filter(visibility=Story.PUBLIC, status='active').order_by('-created_at')
     serializer_class = StorySerializer
     permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -38,7 +38,12 @@ class StoryViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'updated_at', 'title']
     
     def get_queryset(self):
-        return Story.objects.filter(status='active').order_by('-created_at')
+        user = self.request.user
+        return Story.objects.filter(
+            Q(visibility=Story.PUBLIC) | 
+            Q(author=user) |
+            Q(followers__user=user)
+        ).distinct().order_by('-created_at')
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -209,22 +214,40 @@ class VersionViewSet(viewsets.ModelViewSet):
             return VersionCreateSerializer
         return VersionSerializer
 
-    def create(self, request, *args, **kwargs):
-        episode_id = self.kwargs.get('episode_pk')
-        try:
-            episode = Episode.objects.get(pk=episode_id)
-            
-            # Only check if story is active
-            if episode.story.status != 'active':
-                return Response(
-                    {'detail': 'Cannot add versions to episodes in inactive or quarantined stories'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            
-            serializer = self.get_serializer(data=request.data, context={'episode': episode})
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
-            
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Episode.DoesNotExist:
-            return Response({'detail': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
+    @action(detail=True, methods=['post'])
+    def follow(self, request, pk=None):
+        """Follow a story"""
+        story = self.get_object()
+        follower, created = StoryFollower.objects.get_or_create(
+            story=story,
+            user=request.user
+        )
+        
+        if created:
+            return Response({'status': 'story followed'}, status=status.HTTP_201_CREATED)
+        return Response({'status': 'already following story'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def unfollow(self, request, pk=None):
+        """Unfollow a story"""
+        story = self.get_object()
+        follower = StoryFollower.objects.filter(story=story, user=request.user).first()
+        
+        if follower:
+            follower.delete()
+            return Response({'status': 'story unfollowed'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'status': 'not following story'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'])
+    def followed_stories(self, request):
+        """Get stories followed by the current user"""
+        followed_stories = StoryFollower.objects.filter(user=request.user).values_list('story', flat=True)
+        queryset = Story.objects.filter(id__in=followed_stories).order_by('-created_at')
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

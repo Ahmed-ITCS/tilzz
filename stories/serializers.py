@@ -29,36 +29,14 @@ class EpisodeSerializer(serializers.ModelSerializer):
         return obj.versions.filter(version_number__lt=latest_version.version_number).exists()
 
 class StorySerializer(serializers.ModelSerializer):
-    author = UserSerializer(read_only=True)
-    episodes_count = serializers.SerializerMethodField()
-    likes_count = serializers.SerializerMethodField()
-    is_liked = serializers.SerializerMethodField()
-    is_favorited = serializers.SerializerMethodField()
-    
     class Meta:
         model = Story
-        fields = ['id', 'title', 'author', 'description', 'cover_image', 'status', 
-                  'created_at', 'updated_at', 'episodes_count', 'likes_count', 
-                  'is_liked', 'is_favorited']
-        read_only_fields = ['author', 'status', 'created_at', 'updated_at']
-    
-    def get_episodes_count(self, obj):
-        return obj.episodes.count()
-    
-    def get_likes_count(self, obj):
-        return obj.likes.count()
-    
-    def get_is_liked(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.likes.filter(user=request.user).exists()
-        return False
-    
-    def get_is_favorited(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.favorited_by.filter(user=request.user).exists()
-        return False
+        fields = ['id', 'title', 'description', 'cover_image', 'visibility', 'author', 'created_at', 'updated_at']
+
+class StoryDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Story
+        fields = ['id', 'title', 'description', 'cover_image', 'visibility', 'author', 'created_at', 'updated_at', 'episodes']
 
 class StoryDetailSerializer(StorySerializer):
     episodes = EpisodeSerializer(many=True, read_only=True)
@@ -69,7 +47,7 @@ class StoryDetailSerializer(StorySerializer):
 class StoryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Story
-        fields = ['title', 'description', 'cover_image']
+        fields = ['title', 'description', 'cover_image', 'visibility']
     
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
@@ -132,3 +110,9 @@ class QuarantineReportSerializer(serializers.ModelSerializer):
         model = QuarantineReport
         fields = ['id', 'story', 'reason', 'created_at']
         read_only_fields = ['created_at']
+
+class StoryFollowerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StoryFollower
+        fields = ['story', 'user', 'created_at']
+        read_only_fields = ['user', 'created_at']
