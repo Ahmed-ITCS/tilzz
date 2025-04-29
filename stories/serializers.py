@@ -30,9 +30,41 @@ class EpisodeSerializer(serializers.ModelSerializer):
         return obj.versions.filter(version_number__lt=latest_version.version_number).exists()
 
 class StorySerializer(serializers.ModelSerializer):
+    episodes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    is_favorited = serializers.SerializerMethodField()
+    likes_count = serializers.SerializerMethodField()
+    follow = serializers.SerializerMethodField()
+    
     class Meta:
         model = Story
-        fields = ['id', 'title', 'description', 'cover_image', 'visibility', 'author', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'cover_image', 'visibility', 'author', 
+                 'created_at', 'updated_at', 'status', 'episodes_count', 
+                 'is_liked', 'is_favorited', 'likes_count', 'follow']
+    
+    def get_episodes_count(self, obj):
+        return obj.episodes.count()
+    
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(user=request.user).exists()
+        return False
+    
+    def get_is_favorited(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.favorited_by.filter(user=request.user).exists()
+        return False
+    
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+    
+    def get_follow(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.followers.filter(user=request.user).exists()
+        return False
 
 class StoryDetailSerializer(serializers.ModelSerializer):
     class Meta:
@@ -52,6 +84,7 @@ class StoryCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
+        # Ensure visibility is explicitly set from validated_data
         return super().create(validated_data)
 
 class EpisodeCreateSerializer(serializers.ModelSerializer):

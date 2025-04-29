@@ -53,6 +53,7 @@ class StoryViewSet(viewsets.ModelViewSet):
         return StorySerializer
     
     def perform_create(self, serializer):
+        print("Request data:", self.request.data)  # Debug print
         serializer.save(author=self.request.user)
     
     @action(detail=False, methods=['get'])
@@ -251,3 +252,7 @@ class VersionViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return context
