@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, permissions, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Count, Q
-from .models import Story, Episode, Version, Like, Favorite, QuarantineReport
+from .models import Story, Episode, Version, Like, Favorite, QuarantineReport, StoryFollower
 from .serializers import (
     StorySerializer, StoryDetailSerializer, StoryCreateSerializer,
     EpisodeSerializer, EpisodeCreateSerializer,
@@ -141,7 +141,43 @@ class StoryViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-    
+
+    @action(detail=True, methods=['post'])
+    def follow(self, request, pk=None):
+        """Follow a story"""
+        story = self.get_object()
+        follower, created = StoryFollower.objects.get_or_create(
+            story=story,
+            user=request.user
+        )
+        
+        if created:
+            return Response({'status': 'story followed'}, status=status.HTTP_201_CREATED)
+        return Response({'status': 'already following story'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def unfollow(self, request, pk=None):
+        """Unfollow a story"""
+        story = self.get_object()
+        follower = StoryFollower.objects.filter(story=story, user=request.user).first()
+        
+        if follower:
+            follower.delete()
+            return Response({'status': 'story unfollowed'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'status': 'not following story'}, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=False, methods=['get'])
+    def followed_stories(self, request):
+        """Get stories followed by the current user"""
+        followed_stories = StoryFollower.objects.filter(user=request.user).values_list('story', flat=True)
+        queryset = Story.objects.filter(id__in=followed_stories).order_by('-created_at')
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
     @action(detail=True, methods=['post'])
     def report(self, request, pk=None):
         """Report a story for quarantine"""
@@ -215,44 +251,34 @@ class VersionViewSet(viewsets.ModelViewSet):
             return VersionCreateSerializer
         return VersionSerializer
 
-    @action(detail=True, methods=['post'])
-    def follow(self, request, pk=None):
-        """Follow a story"""
-        story = self.get_object()
-        follower, created = StoryFollower.objects.get_or_create(
-            story=story,
-            user=request.user
-        )
-        
-        if created:
-            return Response({'status': 'story followed'}, status=status.HTTP_201_CREATED)
-        return Response({'status': 'already following story'}, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'])
-    def unfollow(self, request, pk=None):
-        """Unfollow a story"""
-        story = self.get_object()
-        follower = StoryFollower.objects.filter(story=story, user=request.user).first()
-        
-        if follower:
-            follower.delete()
-            return Response({'status': 'story unfollowed'}, status=status.HTTP_204_NO_CONTENT)
-        return Response({'status': 'not following story'}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'])
-    def followed_stories(self, request):
-        """Get stories followed by the current user"""
-        followed_stories = StoryFollower.objects.filter(user=request.user).values_list('story', flat=True)
-        queryset = Story.objects.filter(id__in=followed_stories).order_by('-created_at')
-        
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
     def get_serializer_context(self):
         context = super().get_serializer_context()
         return context
+
+    @action(detail=True, methods=['post'])
+    def report(self, request, pk=None):
+        """Report a story for quarantine"""
+        story = self.get_object()
+        reason = request.data.get('reason', '')
+        
+        if not reason:
+            return Response({'detail': 'Reason is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create report
+        QuarantineReport.objects.create(
+            story=story,
+            reported_by=request.user,
+            reason=reason
+        )
+        
+        # Increment quarantine count
+        story.quarantine_count += 1
+        
+        # If 3 or more reports, move to quarantine
+        if story.quarantine_count >= 3:
+            story.status = 'quarantined'
+        
+        story.save()
+        
+        return Response({'status': 'story reported'}, status=status.HTTP_201_CREATED)
+    

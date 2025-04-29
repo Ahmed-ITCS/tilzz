@@ -95,7 +95,7 @@ class QuarantineReport(models.Model):
 
 class StoryFollower(models.Model):
     story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name='followers')
-    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE)
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='followed_stories')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

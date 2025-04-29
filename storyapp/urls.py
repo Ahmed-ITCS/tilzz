@@ -20,9 +20,9 @@ router.register(r'public/stories', PublicStoryViewSet)
 # User endpoints
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'follows', FollowViewSet, basename='follow')
-router.register(r'organizations', OrganizationViewSet, basename='user-organization')  # Added unique basename
+router.register(r'organizations', OrganizationViewSet, basename='user-organization')
 
-# Story endpoints
+# Story endpoints with nested routes
 router.register(r'stories', StoryViewSet, basename='user-story')
 
 # Admin panel endpoints
