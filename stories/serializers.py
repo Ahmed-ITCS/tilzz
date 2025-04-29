@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Story, Episode, Version, Like, Favorite, QuarantineReport
 from accounts.serializers import UserSerializer
+from .models import StoryFollower
 
 class VersionSerializer(serializers.ModelSerializer):
     class Meta:
