@@ -6,7 +6,16 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'bio', 'profile_picture', 'role']
-        read_only_fields = ['role']
+        read_only_fields = ['email', 'role']  # These fields cannot be updated via profile update
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
+
+    def validate_username(self, value):
+        user = self.context['request'].user
+        if self.instance and User.objects.exclude(pk=user.pk).filter(username=value).exists():
+            raise serializers.ValidationError("This username is already in use.")
+        return value
 
 class UserSignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
