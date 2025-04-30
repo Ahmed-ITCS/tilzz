@@ -170,15 +170,15 @@ class EpisodeCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         content = validated_data.pop('content')
         story = self.context.get('story')
-        current_version_number = self.context.get('current_version_number', 1)
+        current_version_number = self.context.get('current_version_number', 1)  # Gets version 3
         
         episode = Episode.objects.create(story=story, **validated_data)
         
-        # Create version matching the current version number
+        # Creates Episode 2 with Version 3
         Version.objects.create(
             episode=episode,
             content=content,
-            version_number=current_version_number
+            version_number=current_version_number  # Uses version 3
         )
         
         return episode
